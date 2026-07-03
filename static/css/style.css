@@ -558,9 +558,11 @@ tr:last-child td { border-bottom: none; }
     gap: 4px 14px;
   }
   .topbar nav a { margin-left: 0; font-size: 13px; }
+  .nav-avatar-wrap, .nav-avatar { width: 28px; height: 28px; }
+  .nav-avatar-fallback { font-size: 11px; }
   .topbar .user-tag {
     font-size: 11px;
-    max-width: 140px;
+    max-width: 110px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
