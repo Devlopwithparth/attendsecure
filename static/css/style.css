@@ -534,12 +534,10 @@ tr:last-child td { border-bottom: none; }
 .schedule-row .schedule-meta { color: var(--text-dim); font-size: 12px; }
 
 /* ---------- Profile card (student dashboard) ---------- */
-.profile-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  margin: 8px 0 28px;
+.profile-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--text);
 }
 .profile-photo {
   width: 96px;
