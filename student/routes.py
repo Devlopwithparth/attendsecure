@@ -10,7 +10,6 @@ from utils.auth_utils import role_required
 from utils.qr_utils import verify_qr_token
 from utils.geo_utils import is_within_radius
 from utils.export_utils import export_to_excel, export_to_pdf
-from utils.face_utils import compare_student_faces, save_selfie_from_data_url
 
 student_bp = Blueprint("student", __name__, template_folder="../templates/student")
 
@@ -19,6 +18,7 @@ student_bp = Blueprint("student", __name__, template_folder="../templates/studen
 @role_required("student")
 def dashboard():
     student_id = session["user_id"]
+    student = User.query.get(student_id)
     total_present = Attendance.query.filter_by(student_id=student_id).count()
     recent = (
         Attendance.query.filter_by(student_id=student_id)
@@ -29,6 +29,7 @@ def dashboard():
     return render_template(
         "student/dashboard.html",
         name=session.get("name"),
+        profile_photo=student.profile_photo if student else None,
         total_present=total_present,
         recent=recent,
     )
@@ -37,50 +38,7 @@ def dashboard():
 @student_bp.route("/scan")
 @role_required("student")
 def scan():
-    student = User.query.get(session["user_id"])
-    return render_template("student/scan.html", has_profile_photo=bool(student.profile_photo))
-
-
-@student_bp.route("/selfie/verify", methods=["POST"])
-@role_required("student")
-def selfie_verify():
-    student = User.query.get(session["user_id"])
-    if not student or not student.profile_photo:
-        return jsonify({
-            "success": False,
-            "message": "No registration photo found for this student account.",
-        }), 400
-
-    data = request.get_json(force=True)
-    try:
-        selfie_path = save_selfie_from_data_url(
-            data.get("selfie"),
-            student.id,
-            current_app.config["UPLOAD_FOLDER"],
-        )
-        matched, score = compare_student_faces(
-            student.profile_photo,
-            selfie_path,
-            current_app.config["UPLOAD_FOLDER"],
-        )
-    except ValueError as exc:
-        return jsonify({"success": False, "message": str(exc)}), 400
-    except OSError:
-        return jsonify({"success": False, "message": "Could not compare the selfie with the registration photo."}), 400
-
-    if not matched:
-        session.pop("selfie_verified_at", None)
-        session.pop("selfie_photo", None)
-        session.pop("face_match_score", None)
-        return jsonify({
-            "success": False,
-            "message": "Selfie did not match the registration photo. Please try again in good light.",
-        }), 403
-
-    session["selfie_verified_at"] = datetime.utcnow().isoformat()
-    session["selfie_photo"] = selfie_path
-    session["face_match_score"] = score
-    return jsonify({"success": True, "message": "Selfie verified. You can now scan the faculty QR."})
+    return render_template("student/scan.html")
 
 
 @student_bp.route("/scan/submit", methods=["POST"])
@@ -96,17 +54,6 @@ def scan_submit():
         return jsonify({"success": False, "message": "No QR token received."}), 400
     if lat is None or lon is None:
         return jsonify({"success": False, "message": "Location access is required to mark attendance."}), 400
-    selfie_verified_at = session.get("selfie_verified_at")
-    if not selfie_verified_at:
-        return jsonify({"success": False, "message": "Please verify your selfie before scanning the QR."}), 400
-    try:
-        selfie_verified_time = datetime.fromisoformat(selfie_verified_at)
-    except ValueError:
-        session.pop("selfie_verified_at", None)
-        return jsonify({"success": False, "message": "Please verify your selfie again."}), 400
-    if (datetime.utcnow() - selfie_verified_time).total_seconds() > 300:
-        session.pop("selfie_verified_at", None)
-        return jsonify({"success": False, "message": "Selfie verification expired. Please verify again."}), 400
 
     session_id, error = verify_qr_token(token)
     if error:
@@ -141,14 +88,9 @@ def scan_submit():
         longitude=float(lon),
         distance_meters=distance,
         status="present",
-        selfie_photo=session.get("selfie_photo"),
-        face_match_score=session.get("face_match_score"),
     )
     db.session.add(record)
     db.session.commit()
-    session.pop("selfie_verified_at", None)
-    session.pop("selfie_photo", None)
-    session.pop("face_match_score", None)
 
     return jsonify({
         "success": True,
