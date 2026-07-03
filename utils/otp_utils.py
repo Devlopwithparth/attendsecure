@@ -13,19 +13,24 @@ def generate_otp(length=6):
     return "".join(random.choices(string.digits, k=length))
 
 
-def _send_via_resend(cfg, email, otp_code):
-    """Send email via Resend's HTTPS API instead of raw SMTP.
-    Used because some hosts (e.g. Render's free tier) block outbound SMTP ports."""
-    api_key = cfg.get("RESEND_API_KEY")
+def _send_via_sendgrid(cfg, email, otp_code):
+    """Send email via SendGrid's HTTPS API instead of raw SMTP.
+    Used because some hosts (e.g. Render's free tier) block outbound SMTP ports,
+    and SendGrid's Single Sender Verification lets us send to any recipient
+    without owning a domain (unlike Resend's sandbox sender)."""
+    api_key = cfg.get("SENDGRID_API_KEY")
+    body_text = (
+        f"Your OTP is {otp_code}. It expires in {cfg['OTP_EXPIRY_MINUTES']} minutes. "
+        f"Do not share this code with anyone."
+    )
     resp = requests.post(
-        "https://api.resend.com/emails",
+        "https://api.sendgrid.com/v3/mail/send",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={
-            "from": cfg.get("RESEND_FROM_EMAIL", "onboarding@resend.dev"),
-            "to": [email],
+            "personalizations": [{"to": [{"email": email}]}],
+            "from": {"email": cfg.get("SENDGRID_FROM_EMAIL", "")},
             "subject": "Your OTP Code",
-            "text": f"Your OTP is {otp_code}. It expires in {cfg['OTP_EXPIRY_MINUTES']} minutes. "
-                    f"Do not share this code with anyone.",
+            "content": [{"type": "text/plain", "value": body_text}],
         },
         timeout=10,
     )
@@ -50,8 +55,8 @@ def create_and_send_otp(email, purpose):
     if cfg.get("OTP_DEV_MODE", True):
         # Dev/testing mode: no real mail server needed, print to console/log instead
         print(f"[DEV OTP] Email={email} Purpose={purpose} OTP={otp_code} (expires in {cfg['OTP_EXPIRY_MINUTES']}m)")
-    elif cfg.get("RESEND_API_KEY"):
-        _send_via_resend(cfg, email, otp_code)
+    elif cfg.get("SENDGRID_API_KEY"):
+        _send_via_sendgrid(cfg, email, otp_code)
     else:
         msg = Message(
             subject="Your OTP Code",
