@@ -251,7 +251,7 @@ button:active, .btn:active { transform: scale(0.98); }
   margin: 0 0 16px;
 }
 
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; margin-bottom: 24px; }
 @media (max-width: 760px) { .grid-2 { grid-template-columns: 1fr; } }
 
 .grid-2 .card { min-height: 140px; box-sizing: border-box; margin-bottom: 0; }
